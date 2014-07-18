@@ -48,7 +48,7 @@ function MOUNT {
 echo "################"
 echo "Mounting NFS"
 ssh root@$IP "echo 162.243.67.60:/var/www/html   nfs      auto,noatime,nolock,bg,nfsvers=3,intr,tcp,actimeo=1800 0 0 >> /etc/fstab" 
-ssh root@$IP "echo mount -a"
+ssh root@$IP mount -a
 }
 
 
@@ -77,7 +77,7 @@ sleep 3s
 echo "####################"
 echo "NFS set for Autostart"
 echo "######################"
-shh root@$IP chkconfig nfs on && service rpcbind start && service nfs start
+ssh root@$IP chkconfig nfs on && service rpcbind start && service nfs start
 sleep 3s
 }
 
@@ -99,18 +99,14 @@ for NFS in $(cat nfs.txt)
 do
 	for hostname in $(cat hostname.txt)
 	do
-ssh-keygen -t rsa
-ssh root@$NFS mkdir -p .ssh
-ssh root@$hostname mkdir -p .ssh
-cat .ssh/id_rsa.pub | ssh root@$NFS 'cat >> .ssh/authorized_keys'
-cat .ssh/id_rsa.pub | ssh root@$hostname 'cat >> .ssh/authorized_keys'
-ssh root@$hostname "chmod 700 .ssh; chmod 640 .ssh/authorized_keys"
-ssh root@$NFS "chmod 700 .ssh; chmod 640 .ssh/authorized_keys"
+ssh-keygen
+ssh-copy-id -i ~/.ssh/id_rsa.pub $hostname
+ssh-copy-id -i ~/.ssh/id_rsa.pub $NFS
 IP2=`ssh root@$hostname  ifconfig | grep Bcast | cut -d: -f2 | cut -d" " -f1`
 echo $IP2 > ip.txt
 scp ip.txt root@$NFS:ip.txt > /dev/null 2>&1
 ssh root@$NFS  'cat ip.txt | while read IPLOCAL; do echo "/var/www/html      $IPLOCAL(rw,sync,no_root_squash,no_subtree_check)" >> /etc/exports;done'    
-ssh root@$NFS "echo exportfs -a"
+ssh root@$NFS exportfs -a
 sleep 3s
 echo "###########"
 echo "NFS updated with additional servers"
@@ -119,7 +115,6 @@ sleep 3s
 done
 done
 
-MOUNT
 
 if UPDATEDBM ;
 then
@@ -149,5 +144,6 @@ echo "Deploy fail at Runlevel update" | mail -s "Deploy Fail" fzebib@gmail.com
 exit 1
 fi
 
+MOUNT
 
 SUCCESS
