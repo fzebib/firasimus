@@ -30,6 +30,7 @@ echo "Deploy Success" | mail -s "Deploy Success" fzebib@gmail.com
 function UPDATEDBM {
 echo "#################"
 echo "Adding repositories and Updating Yum"
+sleep 3s
 ssh root@$IP rpm -Uvh http://download.fedoraproject.org/pub/epel/6/i386/epel-release-6-8.noarch.rpm > /dev/null 2>&1
 ssh root@$IP rpm -Uvh http://rpms.famillecollet.com/enterprise/remi-release-6.rpm > /dev/null 2>&1
 ssh root@$IP  yum update -yq > /dev/null 2>&1
@@ -45,9 +46,11 @@ ssh root@$IP yum install -yq $NFS $MYSQL $LAMPPHP $NGINX $MAIL > /dev/null 2>&1
 
 ###Mounting Remotely via Fstab
 function MOUNT {
+sleep 3s
 echo "################"
 echo "Mounting NFS"
 ssh root@$IP "echo 162.243.67.60:/var/www/html   nfs      auto,noatime,nolock,bg,nfsvers=3,intr,tcp,actimeo=1800 0 0 >> /etc/fstab" 
+sleep 3s
 ssh root@$IP mount -a
 }
 
