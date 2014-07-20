@@ -22,6 +22,7 @@ IP=`cat hostname.txt | while read IPLINE; do echo "$IPLINE";done`
 
 ###Deploy Success
 function SUCCESS {
+echo "Deploy Successful"
 echo "Deploy Success" | mail -s "Deploy Success" fzebib@gmail.com
 }
 
@@ -55,7 +56,12 @@ echo -ne '\n'
 function MOUNT {
 echo "Mounting NFS"
 echo -ne '#####                     (33%)\r'
+if ssh root@$IP grep -Fq "162.243.67.60:/var/www/html" /etc/fstab
+then
+	echo "Settings already exist for Fstab"
+else
 ssh root@$IP "echo 162.243.67.60:/var/www/html /var/www/html  nfs      auto,noatime,nolock,bg,nfsvers=3,intr,tcp,actimeo=1800 0 0 >> /etc/fstab"
+fi
 sleep 3s
 if (ssh root@$IP '[ -d /var/www/html ]')
 echo -ne '#############             (66%)\r'
@@ -76,7 +82,6 @@ echo -ne '#######################   (100%)\r'
 echo -ne '\n'
 fi
 }
-
 
 #### Autostart options for LEMP
 
@@ -106,8 +111,8 @@ do
         for hostname in $(cat hostname.txt)
         do
 ssh-keygen
-ssh-copy-id -i ~/.ssh/id_rsa.pub $hostname
-ssh-copy-id -i ~/.ssh/id_rsa.pub $NFS
+ssh-copy-id -i ~/.ssh/id_rsa.pub $hostname || { echo 'Failed on SSH-Key Access' ; exit 1; }
+ssh-copy-id -i ~/.ssh/id_rsa.pub $NFS  || { echo 'Failed on SSH-Key Access with NFS server' ; exit 1; }
 done
 done
 
@@ -125,16 +130,39 @@ do
 IP2=`ssh root@$hostname  ifconfig | grep Bcast | cut -d: -f2 | cut -d" " -f1`
 for IPREMOTE in $IP2
 do
-ssh root@$NFS 'echo -e /var/www/html "'$IPREMOTE'(rw,sync,no_root_squash,no_subtree_check)" >> /etc/exports'
+if ssh root@$NFS grep -Fq "'$IPREMOTE'" /etc/exports
+then
+echo "'$IPREMOTE' already exists, moving onto next IP"
+else 
+ssh root@$NFS 'echo -e /var/www/html "'$IPREMOTE'(rw,sync,no_root_squash,no_subtree_check)" >> /etc/exports' || { echo 'Failed on NFS mount Access' ; exit 1; }
+
 echo -ne '#############             (66%)\r'
 sleep 1
-ssh root@$NFS exportfs -a
+fi
+ssh root@$NFS exportfs -a  || { echo 'Failed on NFS mount export' ; exit 1; }
 echo "NFS updated with additional servers"
 echo -ne '#######################   (100%)\r'
 echo -ne '\n'
 done
 done
 done
+}
+
+###Nginx Configuration
+function NGINXCONF {
+ssh root@$IP sed -i -e 's/listen\s\+80\s\+default_server;/test/' /etc/nginx/conf.d/default.conf
+#ssh root@$IP sed -i  's/server_name  _;/server_name firasimus.com www.firasimus.com;/' /etc/nginx/conf.d/default.conf
+}
+
+##Nginx Configuration via Upload
+function NGINXCONFUP {
+if ssh root@$IP grep -Fq "default_server" /etc/nginx/conf.d/default.conf
+then
+echo "Default Nginx conf for $IP, uploading conf"
+scp default.conf root@$IP:/etc/nginx/conf.d/default.conf
+else
+echo "Conf file for $IP upto date"
+fi
 }
 
 if UPDATEDBM ;
@@ -165,7 +193,9 @@ echo "Deploy fail at Runlevel update" | mail -s "Deploy Fail" fzebib@gmail.com
 exit 1
 fi
 
+NGINXCONFUP
 NFSMOUNT
 MOUNT
+
 
 SUCCESS
